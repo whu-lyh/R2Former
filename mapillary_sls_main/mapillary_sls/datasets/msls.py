@@ -235,8 +235,8 @@ class MSLS(Dataset):
             np.save(join(root_dir, 'npys', 'msls_' + self.mode + '_qImages.npy'), self.qImages)
             np.save(join(root_dir, 'npys', 'msls_' + self.mode + '_dbImages.npy'), self.dbImages)
             np.save(join(root_dir, 'npys', 'msls_' + self.mode + '_pIdx.npy'), self.pIdx)
-            np.save(join(root_dir, 'npys', 'msls_' + self.mode + 'nonNegIdx.npy'), self.nonNegIdx)
-            np.save(join(root_dir, 'npys', 'msls_' + self.mode + 'nonNegIdx_hard.npy'), self.nonNegIdx_hard)
+            np.save(join(root_dir, 'npys', 'msls_' + self.mode + '_nonNegIdx.npy'), self.nonNegIdx)
+            np.save(join(root_dir, 'npys', 'msls_' + self.mode + '_nonNegIdx_hard.npy'), np.array(self.nonNegIdx_hard))
 
         # decide device type ( important for triplet mining )
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

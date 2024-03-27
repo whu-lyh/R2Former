@@ -101,8 +101,8 @@ class R2Former(nn.Module):
             x_rerank = y_rerank = torch.rand(1,500,131).cuda()
             y_global = x_global = torch.rand(1,256).cuda()
         # print(x_global.shape, x_rerank.shape)
-        B = x_global.shape[0]
-        N = x_rerank.shape[1]
+        B = x_global.shape[0] # B C
+        N = x_rerank.shape[1] # B N C2
         global_score = self.cos(x_global.detach(), y_global.detach())
 
         x_rerank_token = F.normalize(x_rerank[:, :, 3:], p=2, dim=2)
@@ -115,8 +115,10 @@ class R2Former(nn.Module):
             [x_coordinate.unsqueeze(2).repeat(1, 1, y_rerank_token.shape[1], 1),
              y_coordinate.unsqueeze(1).repeat(1, x_rerank_token.shape[1], 1, 1), correlation.unsqueeze(3)],
             dim=3)
+        # make correlation matrix ordered along specific dimension
         order_q = torch.argsort(correlation.unsqueeze(3), dim=2, descending=True).repeat(1, 1, 1, 7)
         order_k = torch.argsort(correlation.unsqueeze(3), dim=1, descending=True).repeat(1, 1, 1, 7)
+        # gather the corresponding elements at same position
         select_q = torch.gather(input=xy_matrix, index=order_q[:, :, :self.num_corr, :], dim=2)
         select_k = torch.gather(input=xy_matrix, index=order_k[:, :self.num_corr, :, :], dim=1)
         select_k_copy = select_k.clone()

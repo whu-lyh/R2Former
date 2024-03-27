@@ -284,7 +284,8 @@ def run_train():
     best_model_state_dict = torch.load(join(args.save_dir, "best_model.pth"))["model_state_dict"]
     model.load_state_dict(best_model_state_dict)
 
-    recalls, recalls_str = test.test_rerank(args, test_ds, model, test_method=args.test_method,rerank_bs=args.rerank_batch_size, num_local=args.num_local, rerank_dim=(args.local_dim+3), reg_top=args.reg_top)
+    recalls, recalls_str = test.test_rerank(args, test_ds, model, test_method=args.test_method,rerank_bs=args.rerank_batch_size, 
+                                            num_local=args.num_local, rerank_dim=(args.local_dim+3), reg_top=args.reg_top)
     logging.info(f"Recalls on {test_ds}: {recalls_str}")
 
 

@@ -88,9 +88,11 @@ class GeoLocalizationNetRerank(nn.Module):
         self.out_dim = args.local_dim
         if args.backbone.startswith("deit"):
             if args.backbone == 'deitBase':
-                self.backbone = deit_base_distilled_patch16_384(img_size=args.resize, num_classes=args.fc_output_dim, embed_layer=AnySizePatchEmbed)
+                self.backbone = deit_base_distilled_patch16_384(img_size=args.resize, 
+                                                                num_classes=args.fc_output_dim, embed_layer=AnySizePatchEmbed)
             else:
-                self.backbone = deit_small_distilled_patch16_224(img_size=args.resize, num_classes=args.fc_output_dim, embed_layer=AnySizePatchEmbed)
+                self.backbone = deit_small_distilled_patch16_224(img_size=args.resize, 
+                                                                 num_classes=args.fc_output_dim, embed_layer=AnySizePatchEmbed)
             args.features_dim = args.fc_output_dim
             if args.hypercolumn:
                 self.hyper_s = args.hypercolumn // 100
@@ -214,8 +216,9 @@ class GeoLocalizationNetRerank(nn.Module):
         multi_out = np.minimum(order.shape[1], self.multi_out)
         if order.shape[1] < self.multi_out:
             print(order.shape, last_map.shape, last_map)
+        # fetch the elements based on the order to shrink the number of local feature
         local_features = torch.gather(input=feature_reshape,
-                                      index=order[:, -multi_out:].unsqueeze(2).repeat(1, 1, feature_reshape.shape[2]),
+                                      index=order[:, -multi_out:].unsqueeze(2).repeat(1, 1, feature_reshape.shape[2]), # BNC -> BN1C -> BN
                                       dim=1)
 
         HW = max(H, W)
@@ -228,12 +231,11 @@ class GeoLocalizationNetRerank(nn.Module):
         if self.args.finetune:
             local_features = self.local_head(local_features.reshape(B*multi_out, C)).reshape(B, multi_out, self.out_dim)
         else:
-            local_features = self.local_head(local_features.detach().reshape(B * multi_out, C)).reshape(B, multi_out,
-                                                                                               self.out_dim)
+            local_features = self.local_head(local_features.detach().reshape(B * multi_out, C)).reshape(B, multi_out, self.out_dim)
         if self.single:
             return x
         else:
-            return x, torch.flip(torch.cat([x_xy, x_attention, local_features], dim=2),dims=(1,))
+            return x, torch.flip(torch.cat([x_xy, x_attention, local_features], dim=2), dims=(1,))
 
     def forward_deit(self, x):
         # with torch.no_grad():
@@ -246,9 +248,13 @@ class GeoLocalizationNetRerank(nn.Module):
         x = torch.cat((cls_tokens, dist_token, x), dim=1)
 
         if H != self.backbone.patch_embed.img_size[0] or W != self.backbone.patch_embed.img_size[1]:
+            # old grid size
             grid_size = [self.backbone.patch_embed.img_size[0]//16, self.backbone.patch_embed.img_size[1]//16]
-            matrix = self.backbone.pos_embed[:, 2:].reshape((1, grid_size[0], grid_size[1],self.backbone.embed_dim)).permute((0, 3, 1, 2))
+            # reshape the postion embedding of tokens(excludes cls and distil token) into 1 N1 N2 C, then permute into 1 C N1 N2
+            matrix = self.backbone.pos_embed[:, 2:].reshape((1, grid_size[0], grid_size[1], self.backbone.embed_dim)).permute((0, 3, 1, 2))
+            # new grid size
             new_size = max(H//16, W//16)
+            # if the new image size is smaller than olde one
             if grid_size[0] >= new_size and grid_size[1] >= new_size:
                 re_matrix = matrix[:, :, (grid_size[0]//2 - new_size//2):(grid_size[0]//2 - new_size//2 + new_size),
                             (grid_size[1]//2 - new_size//2):(grid_size[1]//2 - new_size//2+new_size)]
@@ -259,6 +265,7 @@ class GeoLocalizationNetRerank(nn.Module):
             else:
                 new_matrix = re_matrix[:, :, (new_size//2 - H//16//2):(new_size//2 - H//16//2 + H//16), :].permute(0, 2, 3, 1).reshape([1, -1, self.backbone.pos_embed.shape[-1]])
             # print(new_matrix.shape,H//16, W//16,new_size)
+            # concate cls and distll token's position embedding with new pos embedding
             new_pos_embed = torch.cat([self.backbone.pos_embed[:, :2], new_matrix], dim=1)
             x = x + new_pos_embed
         else:
@@ -272,13 +279,13 @@ class GeoLocalizationNetRerank(nn.Module):
                 output = x * 1
                 y = blk.norm1(x)
                 B, N, C = y.shape
-                qkv = blk.attn.qkv(y).reshape(B, N, 3, blk.attn.num_heads, C // blk.attn.num_heads).permute(2, 0, 3, 1, 4)
-                q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+                qkv = blk.attn.qkv(y).reshape(B, N, 3, blk.attn.num_heads, C // blk.attn.num_heads).permute(2, 0, 3, 1, 4) # final = 3 B num_heads N dim_per_head
+                q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple) B num_heads N dim_per_head
 
                 att = (q @ k.transpose(-2, -1)) * blk.attn.scale
                 att = att.softmax(dim=-1)
-                last_map = (att[:, :, :2, 2:].detach()).sum(dim=1).sum(dim=1)
-            x = blk(x)
+                last_map = (att[:, :, :2, 2:].detach()).sum(dim=1).sum(dim=1) # the penultimate feature map
+            x = blk(x) # B N C
 
             # to support hypercolumn, not used, can be removed.
             if (not self.single) and self.args.hypercolumn:
@@ -295,25 +302,25 @@ class GeoLocalizationNetRerank(nn.Module):
         else:
             if self.args.hypercolumn:
                 output = torch.cat(output_list, dim=2)
-            order = torch.argsort(last_map, dim=1, descending=True)
+            order = torch.argsort(last_map, dim=1, descending=True) # B N C in descending order at N dimension
+            # get the specific number of local tokens as local feature
             multi_out = np.minimum(order.shape[1], self.multi_out)
             local_features = torch.gather(input=output,
                                           index=order[:, :multi_out].unsqueeze(2).repeat(1, 1, output.shape[2]),
                                           dim=1)
-            # compute attention and coordinates
+            # compute attention and coordinates ** VITAL operation!!!
             HW = max(H, W)
             x_xy = torch.cat([(order[:, :multi_out].unsqueeze(2) % np.ceil(W / 16).astype(int) * 16 + 8) / 1. / HW,
                               (order[:, :multi_out].unsqueeze(2) // np.ceil(W / 16).astype(int) * 16 + 8) / 1. / HW],
                              dim=2)
-            x_attention = torch.sort(last_map, dim=1, descending=True)[0][:, :multi_out]
+            # normalize the attention
+            x_attention = torch.sort(last_map, dim=1, descending=True)[0][:, :multi_out] # B N -> B multi_out
             x_attention = (x_attention / torch.max(x_attention, dim=1, keepdim=True)[0]).reshape(x_xy.shape[0],
                                                                                                  x_xy.shape[1], 1)
             if self.args.finetune:
-                local_features = self.local_head(local_features.reshape(B * multi_out, -1)). \
-                    reshape(B, multi_out, self.out_dim)
+                local_features = self.local_head(local_features.reshape(B * multi_out, -1)).eshape(B, multi_out, self.out_dim)
             else:
-                local_features = self.local_head(local_features.detach().reshape(B * multi_out, -1)).\
-                reshape(B, multi_out, self.out_dim)
+                local_features = self.local_head(local_features.detach().reshape(B * multi_out, -1)).reshape(B, multi_out, self.out_dim)
             return self.backbone.l2_norm((x_cls + x_dist) / 2), torch.cat([x_xy, x_attention, local_features], dim=2)
 
     def forward(self, x):

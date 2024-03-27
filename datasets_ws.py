@@ -97,7 +97,7 @@ class BaseDataset(data.Dataset):
             self.database_paths = self.dbImages
             self.queries_paths = self.qImages
             self.pIdx = np.load(os.path.join(self.dataset_folder, 'npys', 'msls_' + split + '_pIdx.npy'), allow_pickle=True)
-            self.nonNegIdx = np.load(os.path.join(self.dataset_folder, 'npys', 'msls_' + split + 'nonNegIdx.npy'), allow_pickle=True)
+            self.nonNegIdx = np.load(os.path.join(self.dataset_folder, 'npys', 'msls_' + split + '_nonNegIdx.npy'), allow_pickle=True)
             self.database_utms = np.zeros([len(self.database_paths), 2])
             self.queries_utms = np.zeros([len(self.queries_paths), 2])
             self.soft_positives_per_query = []
@@ -107,7 +107,7 @@ class BaseDataset(data.Dataset):
                 self.queries_utms = self.queries_utms[self.qIdx]
                 self.soft_positives_per_query = self.pIdx  #
             elif split == 'train':
-                self.nonNegIdx_50 = np.load(os.path.join(self.dataset_folder, 'npys', 'msls_' + split + 'nonNegIdx_hard.npy'), allow_pickle=True)
+                self.nonNegIdx_50 = np.load(os.path.join(self.dataset_folder, 'npys', 'msls_' + split + '_nonNegIdx_hard.npy'), allow_pickle=True)
                 assert self.nonNegIdx_50.shape[0] == self.nonNegIdx.shape[0]
         else:
 

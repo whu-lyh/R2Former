@@ -1,28 +1,28 @@
-import os,sys
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,0"  #
-import math
-import torch
 import logging
-import numpy as np
-from tqdm import tqdm
-import torch.nn as nn
+import math
 import multiprocessing
-from os.path import join
+import os
+import parser
+import sys
+import test
 from datetime import datetime
+from os.path import join
+
+import numpy as np
+import torch
+import torch.nn as nn
 import torchvision.transforms as transforms
 from torch.utils.data.dataloader import DataLoader
-torch.backends.cudnn.benchmark=True  # Provides a speedup
+from tqdm import tqdm
 
-import util
-import test
-import parser
 import commons
 import datasets_ws
+import util
 from model import network
-from model.sync_batchnorm import convert_model
 from model.functional import sare_ind, sare_joint
+from model.sync_batchnorm import convert_model
 
+torch.backends.cudnn.benchmark=True  # Provides a speedup
 
 def run_train():
     #### Initial setup: parser, logging...
